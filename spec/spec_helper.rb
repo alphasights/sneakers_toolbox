@@ -1,4 +1,5 @@
 require "bundler/setup"
+require 'pry'
 require "sneakers_toolbox"
 
 RSpec.configure do |config|
