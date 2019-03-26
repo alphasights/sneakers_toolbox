@@ -77,16 +77,20 @@ module SneakersToolbox
         LostDbConnectionHandler.with_connection do
           response = process_message
 
-          MonitoredScheduledTask.ping(name: self.class.queue_name)
+          SneakersToolbox.config.ticktock.after_work_callback&.call
+
           response
         end
       end
-    rescue Timeout::Error => e
-      Honeybadger.notify(WorkerTimeoutError.new(self.class))
-      raise e
     rescue StandardError => e
-      Honeybadger.notify(e)
+      try_callbacks(e)
       raise e
+    end
+
+    private
+
+    def try_callbacks(error)
+      SneakersToolbox.config.ticktock.error_callbacks[error.class]&.call(error)
     end
   end
 end

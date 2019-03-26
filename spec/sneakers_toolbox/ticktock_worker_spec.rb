@@ -9,6 +9,8 @@ require 'active_record'
 RSpec.describe SneakersToolbox::TicktockWorker do
   TicktockWorker = SneakersToolbox::TicktockWorker
 
+  before { ActiveRecord::Base.establish_connection({adapter: 'sqlite3', database: ':memory:'}) }
+
   it "configures queue with given parameters" do
     queue_opts = Class.new do
       include TicktockWorker
@@ -40,25 +42,34 @@ RSpec.describe SneakersToolbox::TicktockWorker do
     })
   end
 
-  it "raises custom timeout error" do
-    ActiveRecord::Base.establish_connection({adapter: 'sqlite3', database: ':memory:'})
-    worker = Class.new do
-      include TicktockWorker
-
-      configure queue: "queue-name",
-                frequency: 1.minute,
-                ack: true
-
+  it "allows configuring global callback for after processing messages" do
+    callback = double('callback', call: true)
+    SneakersToolbox.config.ticktock.after_work_callback = callback
+    expect(callback).to receive(:call)
+    my_worker = Class.new do
+      include SneakersToolbox::TicktockWorker
       def process_message
-        raise Timeout::Error
       end
-    end.new
+    end
 
-    mock_honeybadger = double('Honeybadger')
-    stub_const('Honeybadger', mock_honeybadger)
-    expect {
-      expect(mock_honeybadger).to receive(:notify).with(SneakersToolbox::WorkerTimeoutError.new(worker.class))
-      worker.work({}.to_json)
-    }.to raise_error(Timeout::Error)
+    my_worker.new.work
+  end
+
+  class MyError < StandardError
+  end
+
+  it "calls configured callbacks" do
+    callback = -> {}
+    SneakersToolbox.config.ticktock.error_callbacks = { MyError => callback }
+    expect(callback).to receive(:call)
+    my_worker = Class.new do
+      include SneakersToolbox::TicktockWorker
+      def process_message
+        raise MyError
+      end
+    end
+
+    expect { my_worker.new.work }.to raise_error(MyError)
+
   end
 end
