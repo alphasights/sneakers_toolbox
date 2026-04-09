@@ -15,7 +15,7 @@ module SneakersToolbox
       ActiveRecord::Base.connection_pool.with_connection { yield }
     rescue ActiveRecord::StatementInvalid => e
       SneakersToolbox.logger.error("Cleaning active connections after exception: #{e}")
-      ActiveRecord::Base.clear_active_connections! # Returns connections to the pool
+      ActiveRecord::Base.connection_handler.clear_active_connections! # Returns connections to the pool
       raise e
     end
   end
